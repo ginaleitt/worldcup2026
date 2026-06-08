@@ -611,20 +611,38 @@ function HeroCard({ team, matches, standings, isKnockout, onRemove }) {
   );
 }
 
-function AddTeamModal({ followed, allTeams, onAdd, onClose }) {
+function AddTeamModal({ followed, allTeams, onSave, onClose }) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState([]);
-  // Use allTeams from App (API-derived unique team names), fall back to TEAM_META keys
+  // Start with current followed list so user can also deselect to unfollow
+  const [selected, setSelected] = useState([...followed]);
+
   const all = allTeams?.length ? allTeams : Object.keys(TEAM_META).filter(
     (t, i, arr) => arr.findIndex(x => TEAM_META[x]?.flag === TEAM_META[t]?.flag) === i
   );
-  const filtered = all.filter(t => t.toLowerCase().includes(query.toLowerCase()));
+
+  // USA first, then alphabetical
+  const sorted = [...all].sort((a, b) => {
+    if (a === "USA" || a === "United States") return -1;
+    if (b === "USA" || b === "United States") return 1;
+    return a.localeCompare(b);
+  });
+
+  const filtered = sorted.filter(t => t.toLowerCase().includes(query.toLowerCase()));
+
+  const toggle = (t) => setSelected(s => s.includes(t) ? s.filter(x => x !== t) : [...s, t]);
+
+  const added   = selected.filter(t => !followed.includes(t)).length;
+  const removed = followed.filter(t => !selected.includes(t)).length;
+  const btnLabel = added > 0 && removed > 0 ? `Save (${added} added, ${removed} removed)`
+    : added > 0  ? `Add ${added} team${added > 1 ? "s" : ""}`
+    : removed > 0 ? `Remove ${removed} team${removed > 1 ? "s" : ""}`
+    : "Save";
 
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.modalBox} onClick={e => e.stopPropagation()}>
-        <div style={S.modalTitle}>Follow a team</div>
-        <div style={S.modalSub}>Pick countries — their matches and stakes will appear on your home screen.</div>
+        <div style={S.modalTitle}>Manage teams</div>
+        <div style={S.modalSub}>Select to follow, deselect to unfollow. USA listed first.</div>
         <input
           style={S.searchInput}
           placeholder="Search countries…"
@@ -634,22 +652,22 @@ function AddTeamModal({ followed, allTeams, onAdd, onClose }) {
         />
         <div style={S.countryGrid}>
           {filtered.map(t => {
-            const isFollowed = followed.includes(t);
             const isSel = selected.includes(t);
             return (
-              <div key={t} style={S.countryOption(isSel, isFollowed)}
-                onClick={() => { if (!isFollowed) setSelected(s => s.includes(t) ? s.filter(x => x !== t) : [...s, t]); }}>
-                <span style={{ fontSize: 20 }}>{TEAM_META[t].flag}</span>
+              <div key={t} style={S.countryOption(isSel, false)} onClick={() => toggle(t)}>
+                <span style={{ fontSize: 20 }}>{TEAM_META[t]?.flag || "🏳"}</span>
                 <span>{t}</span>
-                {isFollowed && <span style={{ marginLeft: "auto", fontSize: 11, color: C.textDim }}>Following</span>}
-                {isSel && !isFollowed && <span style={{ marginLeft: "auto", color: C.green, fontSize: 14 }}>✓</span>}
+                {isSel
+                  ? <span style={{ marginLeft: "auto", color: C.green, fontSize: 14 }}>✓</span>
+                  : <span style={{ marginLeft: "auto", fontSize: 11, color: C.textDim }}>+</span>
+                }
               </div>
             );
           })}
         </div>
         <div>
-          <button style={S.modalBtn(true)} onClick={() => { onAdd(selected); onClose(); }}>
-            Add {selected.length > 0 ? `${selected.length} team${selected.length > 1 ? "s" : ""}` : "teams"}
+          <button style={S.modalBtn(true)} onClick={() => { onSave(selected); onClose(); }}>
+            {btnLabel}
           </button>
           <button style={S.modalBtn(false)} onClick={onClose}>Cancel</button>
         </div>
@@ -1049,8 +1067,8 @@ export default function App() {
         {showAdd && (
           <AddTeamModal
             followed={followed}
-            allTeams={Object.keys(TEAM_META).filter((t, i, arr) => arr.findIndex(x => TEAM_META[x].flag === TEAM_META[t].flag && TEAM_META[x].group === TEAM_META[t].group) === i)}
-            onAdd={teams => setFollowed(f => [...new Set([...f, ...teams])])}
+            allTeams={Object.keys(TEAM_META).filter((t, i, arr) => arr.findIndex(x => TEAM_META[x]?.flag === TEAM_META[t]?.flag && TEAM_META[x]?.group === TEAM_META[t]?.group) === i)}
+            onSave={teams => setFollowed(teams)}
             onClose={() => setShowAdd(false)}
           />
         )}

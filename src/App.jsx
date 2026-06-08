@@ -5,17 +5,15 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Barlow+Conde
 // ─── API CONFIG ───────────────────────────────────────────────────────────────
 // Replace with your real key from https://www.football-data.org/
 const API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY;
-const API_BASE = import.meta.env.DEV
-  ? '/api/v4'
-  : 'https://api.football-data.org/v4';
+// Always use the proxy path — Vite handles it locally, vercel.json handles it in production
+const API_BASE = '/api/v4';
 const WC_2026_ID = 2000; // football-data.org competition ID for FIFA World Cup 2026
-
 
 // ─── POLLING CONFIG ───────────────────────────────────────────────────────────
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 // A match is considered "live" from kickoff until 2h15m after (90min + extra + breaks)
 const MATCH_LIVE_DURATION_MS = 135 * 60 * 1000;
- 
+
 /** Returns true if right now falls within any currently-live match window */
 function anyMatchLiveNow(matches) {
   const now = Date.now();
@@ -24,9 +22,9 @@ function anyMatchLiveNow(matches) {
     return now >= kick && now <= kick + MATCH_LIVE_DURATION_MS;
   });
 }
- 
+
 // ─── API LAYER ────────────────────────────────────────────────────────────────
- 
+
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "X-Auth-Token": API_KEY },
@@ -34,7 +32,7 @@ async function apiFetch(path) {
   if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`);
   return res.json();
 }
- 
+
 /**
  * Fetches all matches for WC 2026 and returns them shaped like our internal format.
  * Swap the mock data below for this call once you have a real API key.
@@ -47,7 +45,7 @@ async function fetchTournamentData() {
     apiFetch(`/competitions/${WC_2026_ID}/matches`),
     apiFetch(`/competitions/${WC_2026_ID}/standings`),
   ]);
- 
+
   const matches = matchesRes.matches.map(m => ({
     id: m.id,
     home: m.homeTeam.shortName || m.homeTeam.name,
@@ -61,7 +59,7 @@ async function fetchTournamentData() {
     homeScore: m.score.fullTime.home,
     awayScore: m.score.fullTime.away,
   }));
- 
+
   // standings is an array of groups, each with a table array
   const standings = {};
   (standingsRes.standings || []).forEach(group => {
@@ -77,12 +75,12 @@ async function fetchTournamentData() {
       pts: row.points,
     }));
   });
- 
+
   return { matches, standings };
 }
- 
+
 // ─── MOCK DATA (used until real API key is set) ───────────────────────────────
- 
+
 // All 48 teams — 12 groups (A–L) — confirmed FIFA 2026 draw
 // API returns team names; these must match the shortName the API uses for flag + group lookup
 // If a team flag shows as 🏳 in the app, check what shortName the API returns and add a mapping below
@@ -161,10 +159,10 @@ const TEAM_META = {
   "Ghana":               { flag: "🇬🇭", group: "L" },
   "Panama":              { flag: "🇵🇦", group: "L" },
 };
- 
- 
+
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
- 
+
 function formatMatchTime(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleString("en-US", {
@@ -172,12 +170,12 @@ function formatMatchTime(dateStr) {
     hour: "numeric", minute: "2-digit", timeZoneName: "short",
   });
 }
- 
+
 function formatDateOnly(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
- 
+
 function getStake(team, standings) {
   const meta = TEAM_META[team];
   if (!meta) return null;
@@ -192,7 +190,7 @@ function getStake(team, standings) {
   if (pos === 3 && row.p < 3) return { label: "Win and hope for the best", dot: "amber" };
   return { label: "Must win to have any chance", dot: "red" };
 }
- 
+
 function googleCalUrl(match) {
   const start = new Date(match.date);
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
@@ -201,14 +199,14 @@ function googleCalUrl(match) {
   const details = encodeURIComponent(`${match.stage} · ${match.venue}`);
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`;
 }
- 
+
 function outlookCalUrl(match) {
   const start = new Date(match.date);
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
   const title = encodeURIComponent(`${match.home} vs ${match.away} — FIFA World Cup 2026`);
   return `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent(match.stage + " · " + match.venue)}`;
 }
- 
+
 function icsDownload(match) {
   const start = new Date(match.date);
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
@@ -226,7 +224,7 @@ function icsDownload(match) {
   a.href = url; a.download = `${match.home}-vs-${match.away}.ics`; a.click();
   URL.revokeObjectURL(url);
 }
- 
+
 function groupMatchesByDate(matches) {
   const map = {};
   matches.forEach(m => {
@@ -236,14 +234,14 @@ function groupMatchesByDate(matches) {
   });
   return Object.entries(map).sort((a, b) => new Date(a[0]) - new Date(b[0]));
 }
- 
+
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
 // All text on dark (#0a0e1a) backgrounds:
 //   primary   #f0f2f8  — headings, scores, team names
 //   secondary #c8d0e0  — body text, match meta
 //   muted     #8d9ab5  — labels, badges, secondary info
 //   dim       #5a6680  — dividers, placeholders
- 
+
 const C = {
   bg:         "#0a0e1a",
   surface:    "#0f1526",
@@ -263,7 +261,7 @@ const C = {
   textMuted:     "#8d9ab5",
   textDim:       "#5a6680",
 };
- 
+
 const S = {
   app: {
     minHeight: "100vh",
@@ -517,9 +515,9 @@ const S = {
     marginLeft: 8, verticalAlign: "middle",
   },
 };
- 
+
 // ─── COMPONENTS ───────────────────────────────────────────────────────────────
- 
+
 function CalButtons({ match }) {
   return (
     <div style={S.calRow}>
@@ -533,7 +531,7 @@ function CalButtons({ match }) {
     </div>
   );
 }
- 
+
 function MatchRow({ team, match }) {
   const opp = match.home === team ? match.away : match.home;
   const oppMeta = TEAM_META[opp];
@@ -543,7 +541,7 @@ function MatchRow({ team, match }) {
   const myScore = isHome ? match.homeScore : match.awayScore;
   const theirScore = isHome ? match.awayScore : match.homeScore;
   const res = isFT ? (myScore > theirScore ? "W" : myScore < theirScore ? "L" : "D") : null;
- 
+
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -572,7 +570,7 @@ function MatchRow({ team, match }) {
     </div>
   );
 }
- 
+
 function HeroCard({ team, matches, standings, isKnockout, onRemove }) {
   const meta = TEAM_META[team];
   const teamMatches = matches
@@ -584,7 +582,7 @@ function HeroCard({ team, matches, standings, isKnockout, onRemove }) {
   const recordStr = groupRow ? `${groupRow.w}W ${groupRow.d}D ${groupRow.l}L` : "";
   const stageBadge = isKnockout ? (nextUpcoming?.stage || "Knockout") : `Group ${meta?.group}${recordStr ? ` · ${recordStr}` : ""}`;
   const accentColor = stake?.dot === "red" ? C.red : stake?.dot === "green" ? C.green : stake?.dot === "amber" ? C.amber : C.blue;
- 
+
   return (
     <div style={S.card(accentColor)}>
       {/* Header */}
@@ -602,7 +600,7 @@ function HeroCard({ team, matches, standings, isKnockout, onRemove }) {
             style={{ background: "transparent", border: "none", cursor: "pointer", color: C.textDim, fontSize: 18, lineHeight: 1, padding: "2px 4px" }}>×</button>
         </div>
       </div>
- 
+
       {/* All matches */}
       {teamMatches.length === 0 ? (
         <div style={{ fontSize: 13, color: C.textMuted, padding: "10px 0" }}>No matches scheduled yet.</div>
@@ -612,7 +610,7 @@ function HeroCard({ team, matches, standings, isKnockout, onRemove }) {
     </div>
   );
 }
- 
+
 function AddTeamModal({ followed, allTeams, onAdd, onClose }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState([]);
@@ -621,7 +619,7 @@ function AddTeamModal({ followed, allTeams, onAdd, onClose }) {
     (t, i, arr) => arr.findIndex(x => TEAM_META[x]?.flag === TEAM_META[t]?.flag) === i
   );
   const filtered = all.filter(t => t.toLowerCase().includes(query.toLowerCase()));
- 
+
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.modalBox} onClick={e => e.stopPropagation()}>
@@ -659,9 +657,9 @@ function AddTeamModal({ followed, allTeams, onAdd, onClose }) {
     </div>
   );
 }
- 
+
 // ─── PAGES ────────────────────────────────────────────────────────────────────
- 
+
 function MyTeams({ followed, eliminated, matches, standings, onOpenAdd, onRemove }) {
   const active = followed.filter(t => !eliminated.includes(t));
   const knockoutStages = ["Round of 16", "Quarter-final", "Semi-final", "Final"];
@@ -669,7 +667,7 @@ function MyTeams({ followed, eliminated, matches, standings, onOpenAdd, onRemove
     const next = matches.find(m => (m.home === team || m.away === team) && m.status === "upcoming");
     return next && knockoutStages.some(s => next.stage?.includes(s));
   };
- 
+
   return (
     <div>
       {active.length === 0 ? (
@@ -703,18 +701,18 @@ function MyTeams({ followed, eliminated, matches, standings, onOpenAdd, onRemove
     </div>
   );
 }
- 
+
 function AllMatches({ followed, matches }) {
   const [filter, setFilter] = useState("all");
   const pool = filter === "mine"
     ? matches.filter(m => followed.includes(m.home) || followed.includes(m.away))
     : matches;
- 
+
   const upcoming = pool.filter(m => m.status === "upcoming");
   const live     = pool.filter(m => m.status === "LIVE");
   const completed = pool.filter(m => m.status === "FT").reverse();
   const grouped = groupMatchesByDate(upcoming);
- 
+
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -724,7 +722,7 @@ function AllMatches({ followed, matches }) {
           </button>
         ))}
       </div>
- 
+
       {live.length > 0 && (
         <>
           <div style={{ ...S.dateLabel, color: C.red }}>🔴 Live now</div>
@@ -744,7 +742,7 @@ function AllMatches({ followed, matches }) {
           <hr style={S.divider} />
         </>
       )}
- 
+
       {grouped.map(([dateStr, dayMatches]) => (
         <div key={dateStr}>
           <div style={S.dateLabel}>{formatDateOnly(dayMatches[0].date)}</div>
@@ -767,7 +765,7 @@ function AllMatches({ followed, matches }) {
           ))}
         </div>
       ))}
- 
+
       {completed.length > 0 && (
         <>
           <hr style={S.divider} />
@@ -790,7 +788,7 @@ function AllMatches({ followed, matches }) {
     </div>
   );
 }
- 
+
 function Standings({ followed, standings }) {
   return (
     <div>
@@ -833,7 +831,7 @@ function Standings({ followed, standings }) {
     </div>
   );
 }
- 
+
 function Bracket({ followed, matches }) {
   // Derive bracket rounds from API match data by stage
   const knockoutOrder = ["ROUND_OF_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL", "THIRD_PLACE"];
@@ -844,12 +842,12 @@ function Bracket({ followed, matches }) {
     "FINAL":         "Final",
     "THIRD_PLACE":   "Third place",
   };
- 
+
   const knockoutMatches = matches.filter(m =>
     knockoutOrder.some(k => m.stage?.toUpperCase().includes(k.replace("_", "")) ||
       m.stage === k || m.stage?.replace(/ /g,"_").toUpperCase() === k)
   );
- 
+
   // Group by stage preserving order
   const byStage = {};
   knockoutMatches.forEach(m => {
@@ -857,9 +855,9 @@ function Bracket({ followed, matches }) {
     if (!byStage[key]) byStage[key] = [];
     byStage[key].push(m);
   });
- 
+
   const stages = Object.keys(byStage);
- 
+
   if (stages.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "60px 0", color: C.textMuted }}>
@@ -868,7 +866,7 @@ function Bracket({ followed, matches }) {
       </div>
     );
   }
- 
+
   return (
     <div>
       {stages.map(stage => (
@@ -913,13 +911,13 @@ function Bracket({ followed, matches }) {
     </div>
   );
 }
- 
- 
+
+
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
- 
+
 export default function App() {
   const [tab, setTab]               = useState("my");
- 
+
   // Persist followed + eliminated teams across refreshes
   const [followed, setFollowed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("wc2026_followed")) || []; }
@@ -937,16 +935,16 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const pollRef = useRef(null);
   const matchesRef = useRef([]);
- 
+
   // Save to localStorage whenever followed/eliminated changes
   useEffect(() => {
     localStorage.setItem("wc2026_followed", JSON.stringify(followed));
   }, [followed]);
- 
+
   useEffect(() => {
     localStorage.setItem("wc2026_eliminated", JSON.stringify(eliminated));
   }, [eliminated]);
- 
+
   const loadFromAPI = useCallback(async () => {
     try {
       const { matches: m, standings: s } = await fetchTournamentData();
@@ -962,27 +960,27 @@ export default function App() {
       setLoading(false);
     }
   }, []);
- 
+
   // Initial load + smart polling — only re-fetches during live match windows
   useEffect(() => {
     loadFromAPI();
- 
+
     pollRef.current = setInterval(() => {
       if (anyMatchLiveNow(matchesRef.current)) {
         loadFromAPI();
       }
     }, POLL_INTERVAL_MS);
- 
+
     return () => clearInterval(pollRef.current);
   }, [loadFromAPI]);
- 
+
   const tabs = [
     { id: "my",        label: "My Teams" },
     { id: "matches",   label: "All Matches" },
     { id: "standings", label: "Standings" },
     { id: "bracket",   label: "Bracket" },
   ];
- 
+
   const LoadingScreen = () => (
     <div style={{ textAlign: "center", padding: "80px 0" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>⚽</div>
@@ -992,7 +990,7 @@ export default function App() {
       <div style={{ fontSize: 13, color: C.textMuted, marginTop: 8 }}>Fetching matches and standings</div>
     </div>
   );
- 
+
   const ErrorScreen = () => (
     <div style={{ textAlign: "center", padding: "80px 0" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
@@ -1003,7 +1001,7 @@ export default function App() {
       <button style={S.modalBtn(true)} onClick={loadFromAPI}>Retry</button>
     </div>
   );
- 
+
   return (
     <>
       <style>{FONT}</style>
@@ -1027,7 +1025,7 @@ export default function App() {
             )}
           </div>
         </header>
- 
+
         <main style={S.content}>
           {loading ? <LoadingScreen /> : error ? <ErrorScreen /> : (
             <>
@@ -1047,7 +1045,7 @@ export default function App() {
             </>
           )}
         </main>
- 
+
         {showAdd && (
           <AddTeamModal
             followed={followed}
